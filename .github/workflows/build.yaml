@@ -20,6 +20,8 @@ jobs:
     name: ${{ matrix.config }} (x86)
     runs-on: windows-2022
     timeout-minutes: 60
+    env:
+      SCCACHE_GHA_ENABLED: "true"
     strategy:
       fail-fast: false
       matrix:
@@ -41,6 +43,10 @@ jobs:
         with:
           arch: x86
 
+      # 编译缓存：sccache 使用 GitHub Actions Cache 作为后端。
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+
       - name: Install vcpkg dependencies
         shell: pwsh
         run: |
@@ -58,7 +64,11 @@ jobs:
           & "$vcpkgRoot\vcpkg.exe" install utfcpp:x86-windows-static
 
       - name: Configure
-        run: cmake --preset windows-x86-base
+        run: >
+          cmake --preset windows-x86-base
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }} --parallel
@@ -68,8 +78,8 @@ jobs:
         with:
           name: wmhhz-vcsa-${{ matrix.config }}
           path: |
-            out/build/windows-x86-base/${{ matrix.config }}/*.asi
-            out/build/windows-x86-base/${{ matrix.config }}/*.exe
-            out/build/windows-x86-base/${{ matrix.config }}/*.pdb
+            out/build/windows-x86-base/*/${{ matrix.config }}/*.asi
+            out/build/windows-x86-base/*/${{ matrix.config }}/*.exe
+            out/build/windows-x86-base/*/${{ matrix.config }}/*.pdb
           if-no-files-found: error
           retention-days: 14
