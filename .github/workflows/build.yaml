@@ -15,10 +15,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # GitHub Windows 运行器自带 vcpkg；CMakePresets.json 通过这个变量定位工具链。
-  VCPKG_ROOT: C:\vcpkg
-
 jobs:
   build:
     name: ${{ matrix.config }} (x86)
@@ -48,10 +44,18 @@ jobs:
       - name: Install vcpkg dependencies
         shell: pwsh
         run: |
-          if (-not (Test-Path "$env:VCPKG_ROOT\vcpkg.exe")) {
-            & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          # VS 的开发环境（vcvars）会把 VCPKG_ROOT 指向 VS 自带的 manifest-only 副本，
+          # 该副本不支持 classic mode。这里显式改回运行器自带的独立 vcpkg 实例。
+          $vcpkgRoot = $env:VCPKG_INSTALLATION_ROOT
+          if (-not $vcpkgRoot) { $vcpkgRoot = 'C:\vcpkg' }
+          if (-not (Test-Path "$vcpkgRoot\vcpkg.exe")) {
+            throw "vcpkg.exe not found under $vcpkgRoot"
           }
-          & "$env:VCPKG_ROOT\vcpkg.exe" install utf8cpp:x86-windows-static
+
+          Write-Host "Using vcpkg at $vcpkgRoot"
+          "VCPKG_ROOT=$vcpkgRoot" >> $env:GITHUB_ENV
+          # vcpkg 的端口名是 utfcpp，安装后 CMake 包名是 utf8cpp。
+          & "$vcpkgRoot\vcpkg.exe" install utfcpp:x86-windows-static
 
       - name: Configure
         run: cmake --preset windows-x86-base
