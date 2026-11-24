@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.5.2)
+cmake_minimum_required(VERSION 3.5.2)
 
 #
 #  VC-LTL自动化加载配置，建议你将此文件单独复制到你的工程再使用，该文件能自动识别当前环境是否存在VC-LTL，并且自动应用。
@@ -64,25 +64,28 @@ endif()
 
 if(NOT VC_LTL_Root)
     EXECUTE_PROCESS(COMMAND reg query "HKEY_CURRENT_USER\\Code\\VC-LTL" -v "Root"
-                    OUTPUT_VARIABLE FOUND_FILE 
+                    OUTPUT_VARIABLE FOUND_FILE
                     ERROR_VARIABLE ERROR_INFO
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
                    )
 
-    string(REGEX MATCH "[a-zA-Z]:\\\\.+\\\\" 
-           FOUND_LTL 
-           ${FOUND_FILE})
-    if (NOT ${FOUND_LTL} STREQUAL "")
-        set(VC_LTL_Root ${FOUND_LTL})
+    if(FOUND_FILE)
+        string(REGEX MATCH "[a-zA-Z]:\\\\.+\\\\"
+               FOUND_LTL
+               "${FOUND_FILE}")
+        if(FOUND_LTL)
+            set(VC_LTL_Root "${FOUND_LTL}")
+        endif()
     endif()
 
-    if(NOT DEFINED VC_LTL_Root) 
-        string(REGEX MATCH "\\\\\\\\.+\\\\" FOUND_LTL ${FOUND_FILE})
-        if (NOT ${FOUND_LTL} STREQUAL "")
-            set(VC_LTL_Root ${FOUND_LTL})
+    if(NOT VC_LTL_Root AND FOUND_FILE)
+        string(REGEX MATCH "\\\\\\\\.+\\\\" FOUND_LTL "${FOUND_FILE}")
+        if(FOUND_LTL)
+            set(VC_LTL_Root "${FOUND_LTL}")
         endif()
     endif()
 endif()
 
-if(VC_LTL_Root)
+if(VC_LTL_Root AND EXISTS "${VC_LTL_Root}/config/config.cmake")
     include("${VC_LTL_Root}\\config\\config.cmake")
 endif()
