@@ -1,0 +1,71 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**/*.md"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # GitHub Windows 运行器自带 vcpkg；CMakePresets.json 通过这个变量定位工具链。
+  VCPKG_ROOT: C:\vcpkg
+
+jobs:
+  build:
+    name: ${{ matrix.config }} (x86)
+    runs-on: windows-2022
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: Release
+            preset: x86-release
+          - config: Debug
+            preset: x86-debug
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # preset 里指定 CMAKE_C(XX)_COMPILER=cl.exe，需要先把 x86 MSVC 环境注入 PATH。
+      - name: Set up MSVC (x86)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+
+      - name: Install vcpkg dependencies
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "$env:VCPKG_ROOT\vcpkg.exe")) {
+            & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          }
+          & "$env:VCPKG_ROOT\vcpkg.exe" install utf8cpp:x86-windows-static
+
+      - name: Configure
+        run: cmake --preset windows-x86-base
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }} --parallel
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wmhhz-vcsa-${{ matrix.config }}
+          path: |
+            out/build/windows-x86-base/${{ matrix.config }}/*.asi
+            out/build/windows-x86-base/${{ matrix.config }}/*.exe
+            out/build/windows-x86-base/${{ matrix.config }}/*.pdb
+          if-no-files-found: error
+          retention-days: 14
